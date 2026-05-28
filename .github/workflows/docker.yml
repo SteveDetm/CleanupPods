@@ -1,0 +1,72 @@
+name: Docker-Build
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@main
+
+      - name: Cosign check install!
+        run: cosign version  
+
+      - name: Docker meta
+        id: meta_build
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ghcr.io/stevedetm/CleanupPods
+          labels: |
+            org.opencontainers.image.title="GitHubActionHelmDepUpdate"
+            org.opencontainers.image.description="Image used by GitHub Action to update helm dependencies"
+            org.opencontainers.image.vendor="https://github.com/stevedetm"
+            org.label-schema.url="https://github.com/stevedetm/CleanupPods"
+            org.label-schema.usage="https://github.com/stevedetm/CleanupPods/blob/main/README.md"
+            org.label-schema.schema-version="1.0"
+          tags: |
+            type=schedule
+            type=ref,event=tag
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta_build.outputs.tags }}
+          labels: ${{ steps.meta_build.outputs.labels }}
+
+      - name: Extract First Tag
+        id: extract_tag
+        run: echo "::set-output name=first_tag::$(echo '${{ steps.meta_build.outputs.tags }}' | awk '{print $1}')"
+      - name: Debug First Tag
+        run: echo "First Tag ${{ steps.extract_tag.outputs.first_tag }}"
+
+      - name: Sign the container image
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: cosign sign --yes ${{ steps.extract_tag.outputs.first_tag }}
+
+      - name: Verify the images
+        run: |
+          cosign verify ghcr.io/stevedetm/CleanupPods \
+            --certificate-identity https://github.com/stevedetm/CleanupPods/.github/workflows/main.yml@refs/heads/main \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com | jq         

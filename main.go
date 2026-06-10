@@ -19,8 +19,8 @@ var deleteAge *int
 
 func main() {
 	dryrun = flag.Bool("dryrun", false, "wether pods should be terminated")
-	labelKey = flag.String("owner", "delete", "the labelKey for targeted namespaces")
-	labelValue = flag.String("owner", "delete", "the labelValue for targeted namespaces")
+	labelKey = flag.String("labelKey", "", "the labelKey for targeted namespaces")
+	labelValue = flag.String("labelValue", "", "the labelValue for targeted namespaces")
 	deleteAge = flag.Int("deleteAge", 604800, "the min age in seconds for terminated pods to be targeted")
 	flag.Parse()
 	// Create Kubernetes client
